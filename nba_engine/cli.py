@@ -115,6 +115,82 @@ def record(
         typer.echo("stopped")
 
 
+@app.command()
+def backfill(
+    source: str = typer.Argument("all", help="espn | kalshi | all"),
+    tables_only: bool = typer.Option(False, help="Rebuild tables from cache, no fetching"),
+    verbose: bool = typer.Option(False, "-v"),
+) -> None:
+    """Download history (ESPN games/box scores/lines, Kalshi settled markets/candles)."""
+    _setup_logging(verbose)
+    from nba_engine.history.espn_backfill import EspnBackfill
+    from nba_engine.history.kalshi_backfill import KalshiBackfill
+    from nba_engine.kalshi.rest import KalshiRest
+
+    s = get_settings()
+
+    async def go() -> None:
+        if source in ("espn", "all"):
+            eb = EspnBackfill(s.data_dir)
+            if not tables_only:
+                await eb.run()
+            eb.build_tables()
+        if source in ("kalshi", "all"):
+            async with KalshiRest(s.rest_base, max_rps=s.kalshi_max_rps) as rest:
+                await KalshiBackfill(rest, s.data_dir).run()
+
+    asyncio.run(go())
+
+
+@app.command()
+def train(
+    first_season: int = typer.Option(2017, help="First ESPN season year to evaluate"),
+    report: str = typer.Option("reports/phase1_pregame.md", help="Report output path"),
+    verbose: bool = typer.Option(False, "-v"),
+) -> None:
+    """Build features, run the walk-forward pregame model and write the evaluation report."""
+    _setup_logging(verbose)
+    from pathlib import Path
+
+    from nba_engine.models.pregame import build_dataset, load_history, walk_forward
+    from nba_engine.models.report import build_report
+
+    s = get_settings()
+    hist = load_history(s.data_dir)
+    if hist["games"].empty:
+        typer.echo("No history found: run `nba-engine backfill` first.")
+        raise typer.Exit(1)
+    df = build_dataset(hist)
+    pred, models = walk_forward(df, first_season=first_season)
+    out = Path(s.data_dir) / "history" / "pregame_predictions.parquet"
+    pred.drop(columns=[c for c in pred.columns if pred[c].dtype == object
+                       and c not in ("game_id", "home", "away", "season_type", "venue_city")]
+              ).to_parquet(out, index=False)
+    pm = df.attrs["player_model"]
+    summary = build_report(pred, models, df, pm.top_players(hist["player_box"]), Path(report))
+    typer.echo(f"Report written to {report}")
+    typer.echo(f"Model log loss {summary['pooled_model']['log_loss']:.4f} vs market "
+               f"{summary['pooled_market']['log_loss']:.4f} (gap {summary['gap']:+.4f}); "
+               f"calibration slope {summary['pooled_model']['calib_slope']:.3f}; "
+               f"blend gain {summary['blend_gain']:+.4f}")
+
+
+@app.command()
+def backtest(
+    report: str = typer.Option("reports/phase2_pregame_backtest.md", help="Report path"),
+    verbose: bool = typer.Option(False, "-v"),
+) -> None:
+    """Score fair-value variants against Kalshi and backtest the pregame strategies."""
+    _setup_logging(verbose)
+    from pathlib import Path
+
+    from nba_engine.backtest.run import run
+
+    res = run(get_settings().data_dir, Path(report))
+    typer.echo(f"Report written to {report}")
+    typer.echo(res["score"].to_string(index=False))
+
+
 @app.command("check-auth")
 def check_auth() -> None:
     """Verify the Kalshi API key by fetching your balance (read-only)."""
