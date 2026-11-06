@@ -1,5 +1,16 @@
 # NBA Prediction Engine for Kalshi: Build Plan
 
+## Status (Nov 2026)
+
+| Phase | State |
+|---|---|
+| 0. Foundation + recorder | Built. The REST-polling recorder is verified on live games. The WebSocket gate is pending a Kalshi API key. |
+| 1. History + pregame model | Built. Gate **failed** on accuracy (log loss +0.019 vs closing line) and passed on calibration. |
+| 2. Debias + blend + pregame backtest | Built. Gate **failed**: no variant beats Kalshi's own price, and every strategy loses after fees. |
+| 3. In-game WP + overreaction study | Next. All required data is already cached. |
+
+See [reports/FINDINGS.md](../reports/FINDINGS.md) for the evidence behind each verdict.
+
 ## Context
 
 The repo (`NBA-Prediction-Engine`, cloned at `C:\Users\nrvig\Projects\NBA Predictor Engine`) is empty apart from a README. The goal is an engine that:

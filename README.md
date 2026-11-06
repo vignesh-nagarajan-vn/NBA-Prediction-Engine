@@ -3,7 +3,8 @@
 An engine that estimates fair, sentiment-free win probabilities for NBA games and trades the
 gap against Kalshi's `KXNBAGAME` markets. The full roadmap is in [docs/PLAN.md](docs/PLAN.md).
 
-**Status: Phase 0 (foundation + recorder).** No models or trading yet.
+**Status: Phases 0-2 built; pregame strategies failed their gates.** No trading yet. Results
+are in [reports/FINDINGS.md](reports/FINDINGS.md).
 
 ## Setup
 
@@ -22,6 +23,30 @@ uv run nba-engine book KXNBAGAME-26NOV06PORLAL-LAL
 uv run nba-engine record               # always-on recorder (Ctrl+C to stop)
 uv run nba-engine check-auth           # verify a configured API key (read-only)
 ```
+
+## History and the pregame model
+
+```bash
+uv run nba-engine backfill espn     # 2014-15 to today: games, box scores, closing lines (~1.5h first run)
+uv run nba-engine backfill kalshi   # every settled KXNBAGAME market + 1-minute candles (~25 min)
+uv run nba-engine train             # walk-forward model + reports/phase1_pregame.md
+uv run nba-engine backtest          # fair value vs Kalshi + reports/phase2_pregame_backtest.md
+```
+
+Raw responses are cached under `data/cache/` so reruns only fetch what is new
+(`backfill espn --tables-only` rebuilds the tables without any network calls).
+
+The pregame model predicts the home margin from:
+
+- **Elo** and **decay-weighted team margin ratings**, both updated game by game
+- **Player-impact ratings** (game-level adjusted plus-minus with ridge shrinkage), so a
+  team's strength drops when its best players are out
+- **Schedule context:** rest, back-to-backs, 3-in-4, travel distance, time-zone shifts,
+  altitude, playoffs
+
+It converts that margin into a win probability. Each season is predicted by a model trained
+only on earlier seasons, and the report compares it with sportsbook closing lines and
+Kalshi's pre-tip prices.
 
 ## Recorder
 
