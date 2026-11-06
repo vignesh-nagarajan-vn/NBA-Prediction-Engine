@@ -1,0 +1,48 @@
+[project]
+name = "nba-engine"
+version = "0.1.0"
+description = "NBA prediction engine that finds value trades on Kalshi game markets"
+readme = "README.md"
+requires-python = ">=3.12"
+dependencies = [
+    "httpx>=0.27",
+    "websockets>=13.0",
+    "cryptography>=43.0",
+    "pydantic>=2.8",
+    "pydantic-settings>=2.4",
+    "pyarrow>=17.0",
+    "typer>=0.12",
+    "tzdata>=2024.1",
+]
+
+[dependency-groups]
+dev = [
+    "pytest>=8.3",
+    "pytest-asyncio>=0.24",
+    "ruff>=0.6",
+]
+
+[project.scripts]
+nba-engine = "nba_engine.cli:app"
+
+[build-system]
+requires = ["hatchling"]
+build-backend = "hatchling.build"
+
+[tool.hatch.build.targets.wheel]
+packages = ["nba_engine"]
+
+[tool.pytest.ini_options]
+testpaths = ["tests"]
+asyncio_mode = "auto"
+asyncio_default_fixture_loop_scope = "function"
+markers = [
+    "network: hits live public endpoints (deselect with -m 'not network')",
+]
+
+[tool.ruff]
+line-length = 100
+target-version = "py312"
+
+[tool.ruff.lint]
+select = ["E", "F", "I", "B", "UP", "SIM"]

@@ -1,0 +1,24 @@
+# Python
+__pycache__/
+*.py[cod]
+.venv/
+.pytest_cache/
+.ruff_cache/
+*.egg-info/
+dist/
+build/
+
+# Secrets: never commit keys or env files
+.env
+*.pem
+*.key
+secrets/
+
+# Recorded and derived data (large, regenerable or irreplaceable but not for git)
+/data/
+
+# OS / editor
+.DS_Store
+Thumbs.db
+.vscode/
+.idea/
