@@ -53,8 +53,22 @@ class PlayerRatings:
         self.prior_fit_season = prior_fit_season
         self.box_coef_: np.ndarray | None = None
 
-    def run(self, games: pd.DataFrame, box: pd.DataFrame) -> pd.DataFrame:
+    def run(self, games: pd.DataFrame, box: pd.DataFrame,
+            stints: pd.DataFrame | None = None) -> pd.DataFrame:
+        """`stints` (optional): lineup stints from play-by-play. When a game has valid
+        lineups for at least 90% of its time, each stint is its own regression row
+        (players on court, duration, point differential) instead of one row per game."""
         g = games.sort_values("tip_utc").reset_index(drop=True)
+        stint_rows: dict[str, np.ndarray] = {}
+        if stints is not None and len(stints):
+            st = stints[stints["game_id"].isin(set(g["game_id"]))]
+            cover = st[st["valid"]].groupby("game_id")["dur_s"].sum() / st.groupby(
+                "game_id")["dur_s"].sum()
+            good = set(cover[cover >= 0.9].index)
+            st = st[st["valid"] & st["game_id"].isin(good) & (st["dur_s"] > 0)]
+            cols = ["h0", "h1", "h2", "h3", "h4", "a0", "a1", "a2", "a3", "a4"]
+            for gid, df in st.groupby("game_id", sort=False):
+                stint_rows[gid] = df[[*cols, "dur_s", "home_pts", "away_pts"]].to_numpy()
         box = box[box["game_id"].isin(set(g["game_id"]))]
         pids = sorted(box["player_id"].unique())
         pidx = {p: i for i, p in enumerate(pids)}
@@ -131,6 +145,20 @@ class PlayerRatings:
                         ewma[p.player_id] = (p.minutes if prev is None
                                              else (1 - self.alpha) * prev + self.alpha * p.minutes)
             w = 2.0 ** (day / self.hl)  # growing weights == decaying old games
+            srows = stint_rows.get(r.game_id)
+            if srows is not None:
+                hca_on = 0.0 if r.neutral else 1.0
+                for row in srows:
+                    try:
+                        ix = np.array([pidx[q] for q in row[:10]] + [hca])
+                    except KeyError:
+                        continue
+                    f = float(row[10]) / 2880.0
+                    v = np.array([f] * 5 + [-f] * 5 + [f * hca_on])
+                    A[np.ix_(ix, ix)] += w * np.outer(v, v)
+                    b[ix] += w * v * (float(row[11]) - float(row[12]))
+                    last_seen_scale[ix] = w
+                continue
             ix = np.array(idx)
             v = np.array(val)
             A[np.ix_(ix, ix)] += w * np.outer(v, v)

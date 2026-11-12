@@ -44,7 +44,7 @@ GBM_EXTRA = ["home_games_played", "away_games_played", "total_pred", "pace_pred"
 def load_history(data_dir: Path | str) -> dict[str, pd.DataFrame]:
     h = Path(data_dir) / "history"
     out = {}
-    for name in ("games", "player_box", "odds", "kalshi_markets", "kalshi_candles"):
+    for name in ("games", "player_box", "odds", "kalshi_markets", "kalshi_candles", "stints"):
         path = h / f"{name}.parquet"
         out[name] = pd.read_parquet(path) if path.exists() else pd.DataFrame()
     return out
@@ -86,8 +86,11 @@ def build_dataset(hist: dict[str, pd.DataFrame], player_kwargs: dict | None = No
     df = df.merge(efficiency_ratings(games, box, **(eff_kwargs or {})), on="game_id")
     df = df.merge(schedule_features(games), on="game_id")
     df = df.merge(_games_played(games), on="game_id")
-    pr = PlayerRatings(**(player_kwargs or {}))
-    df = df.merge(pr.run(games, box), on="game_id")
+    pk = dict(player_kwargs or {})
+    use_stints = pk.pop("use_stints", True)
+    pr = PlayerRatings(**pk)
+    stints = hist.get("stints") if use_stints else None
+    df = df.merge(pr.run(games, box, stints=stints), on="game_id")
     if not hist["odds"].empty:
         df = df.merge(closing_lines(hist["odds"]), on="game_id", how="left")
     if not hist["kalshi_markets"].empty:
