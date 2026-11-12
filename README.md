@@ -1,99 +1,106 @@
-# NBA-Prediction-Engine
+<div align="center">
 
-An engine that estimates fair, sentiment-free win probabilities for NBA games and trades the
-gap against Kalshi's `KXNBAGAME` markets. The full roadmap is in [docs/PLAN.md](docs/PLAN.md).
+# NBA Prediction Engine
 
-**Status: Phases 0-3 built.** The pregame and in-game models are validated on held-out
-seasons and the current season. No trading strategy has passed its gate, so nothing trades.
-Start with [reports/BRIEF.md](reports/BRIEF.md).
+**Win probabilities for every NBA game, scored against Kalshi and the sportsbooks.**
 
-## Setup
+A Python engine that predicts NBA games before tip and during play, projects the season,
+and tests whether any of it beats Kalshi's prediction-market prices after fees.
+
+</div>
+
+<!--- Language and data --->
+<p align="center"><sub><b>Language & Data:</b></sub></p>
+<p align="center">
+  <img src="https://img.shields.io/badge/python-3670A0?style=for-the-badge&logo=python&logoColor=ffdd54">
+  <img src="https://img.shields.io/badge/numpy-%23013243.svg?style=for-the-badge&logo=numpy&logoColor=white">
+  <img src="https://img.shields.io/badge/pandas-%23150458.svg?style=for-the-badge&logo=pandas&logoColor=white">
+  <img src="https://img.shields.io/badge/SciPy-%230C55A5.svg?style=for-the-badge&logo=scipy&logoColor=white">
+  <img src="https://img.shields.io/badge/Matplotlib-%23ffffff.svg?style=for-the-badge&logo=Matplotlib&logoColor=black">
+</p>
+
+<!--- Tooling and status --->
+<p align="center"><sub><b>Tooling & Status:</b></sub></p>
+<p align="center">
+  <img src="https://img.shields.io/badge/pytest-%230A9EDC.svg?style=for-the-badge&logo=pytest&logoColor=white">
+  <img src="https://img.shields.io/badge/python-%E2%89%A5%203.12-3670A0.svg?style=for-the-badge">
+  <img src="https://img.shields.io/badge/trading-off-c23b3b.svg?style=for-the-badge">
+</p>
+
+## What it is
+
+The engine estimates a fair win probability for each game from basketball data alone, then
+compares it with the price on Kalshi's `KXNBAGAME` markets. The aim was to strip crowd
+sentiment out of the market price and trade the gap.
+
+The design idea is that player value comes from who was actually on the floor together. The
+engine rebuilds 482,701 five-on-five lineup stints from play-by-play and rates players on
+those, so a team's strength moves when its stars sit. Everything is tested walk-forward:
+each season is predicted by a model that only saw earlier seasons.
+
+The honest result so far: the model is well calibrated and close to the market, but Kalshi
+is sharper. No strategy has beaten Kalshi after fees, so nothing trades. The full write-up
+is in [reports/BRIEF.md](reports/BRIEF.md).
+
+<table>
+  <tr>
+    <td width="50%"><img src="reports/figures/accuracy_by_season.png" alt="Log loss by season since 2016-17: the model tracks about 0.015 above the sportsbook closing line every season, including the 2022-23+ holdout."></td>
+    <td width="50%"><img src="reports/figures/season_projection.png" alt="Projected 2026-27 final wins with 80% ranges for all 30 teams, split by conference, with each team's playoff odds."></td>
+  </tr>
+  <tr>
+    <td width="50%"><img src="reports/figures/projection_backtest.png" alt="Season projections made on Nov 12 of four past seasons against final records: the model misses by 6.5 wins on average versus about 9 for naive baselines."></td>
+    <td width="50%"><img src="reports/figures/example_game.png" alt="One game's win probability minute by minute: the in-game model and Kalshi's live price move together through a late collapse."></td>
+  </tr>
+</table>
+
+## Results
+
+| | Our model | Market |
+|---|---|---|
+| Pregame log loss, unseen seasons 2022-23 on (lower is better) | 0.6155 | 0.6020 (closing line) |
+| Winners picked, same games | 66.4% | 67.2% |
+| Winners picked, 2026-27 so far (159 games) | 68.6% | 71.1% (Kalshi pre-tip) |
+| In-game log loss at the same moments | 0.443 | 0.434 (Kalshi live) |
+| Season projections, average miss from Nov 12 | 6.5 wins | 9.0 to 9.3 for naive baselines |
+
+Calibration slope is 1.02 (1.00 is perfect). The best pregame signal beats Kalshi's tip-off
+price by about half a cent, and Kalshi's taker fee is about 1.5 cents.
+
+## How it works
+
+- **Pregame model:** lineup-stint player ratings, pace-adjusted team efficiency, Elo, and
+  rest, travel and altitude. A ridge model and a small numpy tree model are averaged into a
+  predicted margin, which becomes a win probability.
+- **In-game model:** a fitted random-walk model using score, time left, possession and
+  pregame strength.
+- **Forecasts:** next-7-day game probabilities with injured players removed, and a 20,000-run
+  simulation of the rest of the season through the playoffs.
+- **Market side:** Kalshi REST and WebSocket clients, a fee model, and an order-book recorder.
+
+## Run it
 
 Requires Python 3.12 and [uv](https://docs.astral.sh/uv/).
 
 ```bash
 uv sync
-cp .env.example .env   # optional: add a Kalshi API key for WebSocket mode
+uv run nba-engine backfill espn      # games, box scores, closing lines since 2014-15 (~1.5h)
+uv run nba-engine backfill kalshi    # settled Kalshi markets and minute candles (~25 min)
+uv run nba-engine build-pbp          # play-by-play and lineup stints (~10 min)
+uv run nba-engine train              # walk-forward model and report
+uv run nba-engine predict            # next 7 days, model vs Kalshi
+uv run nba-engine project            # rest-of-season simulation
+uv run nba-engine figures            # charts in reports/figures/
 ```
 
-## Commands
+`uv run nba-engine --help` lists every command, including `tune`, `backtest`, `ingame`,
+`validate-projections` and the live `record` command. Tests run with
+`uv run python -m pytest -m "not network"`.
 
-```bash
-uv run nba-engine markets              # today's/tomorrow's games, Kalshi top of book, taker fees
-uv run nba-engine book KXNBAGAME-26NOV06PORLAL-LAL
-uv run nba-engine record               # always-on recorder (Ctrl+C to stop)
-uv run nba-engine check-auth           # verify a configured API key (read-only)
-```
+## Docs
 
-## History and models
-
-```bash
-uv run nba-engine backfill espn     # 2014-15 to today: games, box scores, closing lines (~1.5h first run)
-uv run nba-engine backfill kalshi   # every settled KXNBAGAME market + 1-minute candles (~25 min)
-uv run nba-engine build-pbp         # play-by-play + lineup stints from the cached summaries (~10 min)
-uv run nba-engine tune              # pick settings on 2016-17..2021-22 only (~45 min)
-uv run nba-engine train             # walk-forward pregame model + reports/phase1_pregame.md
-uv run nba-engine backtest          # pregame fair value vs Kalshi + reports/phase2_pregame_backtest.md
-uv run nba-engine ingame            # in-game win probability vs Kalshi + reports/phase3_ingame.md
-```
-
-Raw responses are cached under `data/cache/` so reruns only fetch what is new
-(`backfill espn --tables-only` rebuilds the tables without any network calls).
-
-The **pregame model** predicts the home margin and turns it into a win probability. Its inputs:
-
-- **Lineup strength:** player ratings from five-on-five lineup stints reconstructed from
-  play-by-play (who was actually on the floor together), shrunk toward a box-score prior.
-  Injured or resting players drop out of the projected lineup.
-- **Team ratings:** Elo, decay-weighted margin ratings and pace-adjusted offense/defense
-  efficiency, all updated game by game.
-- **Schedule context:** rest, back-to-backs, 3-in-4, travel distance, time-zone shifts,
-  altitude, playoffs.
-
-A ridge regression and a small gradient-boosted tree model (pure numpy) are averaged. Each
-season is predicted by a model trained only on earlier seasons, and settings were tuned on
-2016-17 to 2021-22 only, so 2022-23 onward is a true holdout.
-
-The **in-game model** is a fitted version of the random-walk win-probability formula
-(score margin, time left, possession, pregame expected margin), trained on play-by-play.
-
-## Forecasts
-
-```bash
-uv run nba-engine predict                # next 7 days: model vs Kalshi, injured players removed
-uv run nba-engine project                # rest-of-season simulation: wins, seeds, playoff and title odds
-uv run nba-engine validate-projections   # backtest projections from Nov 12 of past seasons
-uv run nba-engine figures                # charts to reports/figures/
-```
-
-Outputs land in `reports/predictions/` (CSV) and `reports/figures/` (PNG). The brief with
-the headline results is [reports/BRIEF.md](reports/BRIEF.md).
-
-## Recorder
-
-`record` writes Parquet files under `data/raw/<stream>/date=YYYY-MM-DD/`:
-
-| Stream | What |
-|---|---|
-| `kalshi_books` | Order-book snapshots (REST mode): every 2s for live/near-tip games, 30s otherwise, unchanged books skipped |
-| `kalshi_trades` | Public trades per market (REST mode) |
-| `kalshi_ws` | Raw WebSocket messages: `orderbook_delta`, `ticker`, `trade` (key configured) |
-| `book_checks` | WebSocket-rebuilt book vs REST snapshot every 60s (Phase 0 exit gate) |
-| `espn_plays` | Play-by-play with ESPN wall clock, our receive time, and a dead-ball flag |
-| `espn_state`, `games` | Game status and the ESPN-to-Kalshi ticker mapping |
-| `espn_odds` | Free pregame sportsbook lines and injuries from ESPN, every 15 min within 12h of tip |
-| `espn_summaries/` | Full ESPN game summary (box score, PBP, odds) saved once per finished game |
-
-Without an API key the recorder polls Kalshi's public REST API at 4 requests per second at
-most (unauthenticated traffic is rate-limited around 5/s). With a key it switches to the
-WebSocket feed, which is real-time and has no polling gaps.
-
-Query recordings with DuckDB, for example:
-`SELECT * FROM read_parquet('data/raw/kalshi_books/**/*.parquet', hive_partitioning=true)`.
-
-## Tests
-
-```bash
-uv run python -m pytest -m "not network"   # offline unit tests
-uv run python -m pytest                    # plus live public-endpoint smoke tests
-```
+- [reports/BRIEF.md](reports/BRIEF.md): results summary with every chart
+- [reports/phase1_pregame.md](reports/phase1_pregame.md): pregame model vs the market, by season
+- [reports/phase2_pregame_backtest.md](reports/phase2_pregame_backtest.md): pregame trading backtest
+- [reports/phase3_ingame.md](reports/phase3_ingame.md): in-game model and Kalshi live prices
+- [reports/FINDINGS.md](reports/FINDINGS.md): what failed and why
+- [docs/PLAN.md](docs/PLAN.md): the original build plan and phase status
