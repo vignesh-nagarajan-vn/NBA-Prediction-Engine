@@ -26,7 +26,8 @@ IDX = {c: i for i, c in enumerate(CODES)}
 @dataclass
 class SimConfig:
     n_sims: int = 20000
-    tau: float = 2.5  # sd of season-long team strength uncertainty (points)
+    tau: float = 3.3  # sd of season-long team strength uncertainty (points); calibrated so
+    # 80% win ranges cover ~80% of outcomes in the 2022-23..2025-26 projection backtests
     sigma: float = 12.5  # single-game margin noise
     playoff_hca: float = 2.5
     seed: int = 7

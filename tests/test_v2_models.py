@@ -95,7 +95,7 @@ def test_stern_prob_behaves():
 def test_season_sim_probabilities_are_consistent():
     rng = np.random.default_rng(3)
     rows = []
-    for d in range(40):
+    for _ in range(40):
         teams = rng.permutation(CODES)
         for h, a in zip(teams[:15], teams[15:], strict=True):
             rows.append({"home": h, "away": a, "neutral": False,
