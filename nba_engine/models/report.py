@@ -100,6 +100,43 @@ def build_report(pred: pd.DataFrame, models: dict, df_all: pd.DataFrame,
         "",
     ]
 
+    # ---- honest split and the current season
+    split_rows = []
+    for name, seasons in (("validation (2016-17 to 2021-22, used for tuning)", range(2017, 2023)),
+                          ("holdout (2022-23 onward, never used for tuning)", range(2023, 2100))):
+        d = pred[pred["season"].isin(list(seasons))].dropna(subset=["p_spread"])
+        if d.empty:
+            continue
+        m, k = summarize(d["home_win"], d["p_model"]), summarize(d["home_win"], d["p_spread"])
+        split_rows.append({"split": name, "games": m["n"], "model_logloss": m["log_loss"],
+                           "market_logloss": k["log_loss"], "gap": m["log_loss"] - k["log_loss"],
+                           "model_acc": m["accuracy"], "market_acc": k["accuracy"]})
+    lines += ["### Validation vs. holdout", "",
+              "Settings were chosen on the validation seasons only, so the holdout row is the "
+              "fair estimate of live accuracy.", "", _fmt_table(pd.DataFrame(split_rows)), ""]
+
+    cur = int(pred["season"].max())
+    d = pred[pred["season"] == cur]
+    if len(d):
+        rows = [{"source": "Our model", **summarize(d["home_win"], d["p_model"])}]
+        kk = d.dropna(subset=["kalshi_p_home"])
+        if len(kk) > 20:
+            rows.append({"source": "Our model (games with Kalshi)",
+                         **summarize(kk["home_win"], kk["p_model"])})
+            rows.append({"source": "Kalshi pre-tip (same games)",
+                         **summarize(kk["home_win"], kk["kalshi_p_home"])})
+        ss = d.dropna(subset=["p_spread"])
+        if len(ss) > 20:
+            rows.append({"source": "Our model (games with a line)",
+                         **summarize(ss["home_win"], ss["p_model"])})
+            rows.append({"source": "Sportsbook close (same games)",
+                         **summarize(ss["home_win"], ss["p_spread"])})
+        cs = pd.DataFrame(rows)[["source", "n", "log_loss", "brier", "accuracy"]]
+        lines += [f"## This season so far ({cur - 1}-{cur - 2000})", "",
+                  "The model is frozen at the start of the season: trained only on earlier "
+                  "seasons, with ratings updated game by game as results come in.", "",
+                  _fmt_table(cs), ""]
+
     # ---- does the model add information beyond the market?
     pred = pred.copy()
     pred["p_blend"] = blend_walk_forward(pred, ["p_spread", "p_model"])

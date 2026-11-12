@@ -154,20 +154,29 @@ def train(
 
     from nba_engine.models.pregame import build_dataset, load_history, walk_forward
     from nba_engine.models.report import build_report
+    from nba_engine.models.tuning import load_params
 
     s = get_settings()
     hist = load_history(s.data_dir)
     if hist["games"].empty:
         typer.echo("No history found: run `nba-engine backfill` first.")
         raise typer.Exit(1)
-    df = build_dataset(hist)
-    pred, models = walk_forward(df, first_season=first_season)
+    params = load_params()
+    holder: list = []
+    df = build_dataset(hist, player_kwargs=params["player"], team_kwargs=params["team"],
+                       eff_kwargs=params["eff"], player_model_out=holder)
+    pred, models = walk_forward(df, first_season=first_season,
+                                gbm_weight=params["gbm_weight"])
     out = Path(s.data_dir) / "history" / "pregame_predictions.parquet"
     pred.drop(columns=[c for c in pred.columns if pred[c].dtype == object
                        and c not in ("game_id", "home", "away", "season_type", "venue_city")]
               ).to_parquet(out, index=False)
-    pm = df.attrs["player_model"]
+    pm = holder[0]
     summary = build_report(pred, models, df, pm.top_players(hist["player_box"]), Path(report))
+    pdir = Path("reports/predictions")
+    pdir.mkdir(parents=True, exist_ok=True)
+    pm.top_players(hist["player_box"], k=30).to_csv(pdir / "player_ratings.csv", index=False)
+    models[max(models)].coef_table().to_csv(pdir / "model_coefficients.csv", index=False)
     typer.echo(f"Report written to {report}")
     typer.echo(f"Model log loss {summary['pooled_model']['log_loss']:.4f} vs market "
                f"{summary['pooled_market']['log_loss']:.4f} (gap {summary['gap']:+.4f}); "
@@ -189,6 +198,208 @@ def backtest(
     res = run(get_settings().data_dir, Path(report))
     typer.echo(f"Report written to {report}")
     typer.echo(res["score"].to_string(index=False))
+
+
+@app.command("build-pbp")
+def build_pbp(verbose: bool = typer.Option(False, "-v")) -> None:
+    """Extract play-by-play and lineup stints from the cached ESPN summaries."""
+    _setup_logging(verbose)
+    from pathlib import Path
+
+    import pandas as pd
+
+    from nba_engine.history.pbp import build_plays_table, build_stints, stint_quality
+
+    s = get_settings()
+    h = Path(s.data_dir) / "history"
+    games = pd.read_parquet(h / "games.parquet")
+    games = games[games["completed"]]
+    plays = build_plays_table(Path(s.data_dir) / "cache" / "espn" / "summary",
+                              list(games["game_id"]), h / "plays.parquet")
+    stints = build_stints(plays, pd.read_parquet(h / "player_box.parquet"), games,
+                          h / "stints.parquet")
+    q = stint_quality(stints, games)
+    typer.echo(f"{len(plays):,} plays, {len(stints):,} stints; mean valid lineup time "
+               f"{q['valid_time'].mean():.1%}; stint points match final score in "
+               f"{q['points_match'].mean():.1%} of games")
+
+
+@app.command()
+def ingame(
+    report: str = typer.Option("reports/phase3_ingame.md", help="Report path"),
+    verbose: bool = typer.Option(False, "-v"),
+) -> None:
+    """Train/evaluate the in-game win-probability model and study Kalshi live prices."""
+    _setup_logging(verbose)
+    from pathlib import Path
+
+    from nba_engine.backtest.ingame_run import run
+
+    res = run(get_settings().data_dir, Path(report))
+    pdir = Path("reports/predictions")
+    pdir.mkdir(parents=True, exist_ok=True)
+    res["by_phase"].to_csv(pdir / "ingame_by_phase.csv", index=False)
+    res["kalshi"].to_csv(pdir / "ingame_vs_kalshi.csv", index=False)
+    res["strategy"].to_csv(pdir / "ingame_fade_strategy.csv", index=False)
+    typer.echo(f"Report written to {report}")
+    typer.echo(res["by_phase"].round(4).to_string(index=False))
+    typer.echo(res["kalshi"].round(4).to_string(index=False))
+    typer.echo(res["strategy"].round(4).to_string(index=False))
+
+
+@app.command()
+def tune(verbose: bool = typer.Option(False, "-v")) -> None:
+    """Pick model settings on validation seasons (2017-2022) and save them."""
+    _setup_logging(verbose)
+    from pathlib import Path
+
+    from nba_engine.models.pregame import load_history
+    from nba_engine.models.tuning import PARAMS_PATH
+    from nba_engine.models.tuning import tune as run_tune
+
+    s = get_settings()
+    out = Path(s.data_dir) / "history" / "tuning_results.csv"
+    params = run_tune(load_history(s.data_dir), out)
+    typer.echo(f"Saved {PARAMS_PATH}: {params}")
+
+
+@app.command()
+def predict(
+    days: int = typer.Option(7, help="Days ahead to predict"),
+    out: str = typer.Option("reports/predictions/upcoming.csv", help="CSV output path"),
+    verbose: bool = typer.Option(False, "-v"),
+) -> None:
+    """Win probabilities for upcoming games (current rosters minus injured players),
+    next to Kalshi's current price."""
+    _setup_logging(verbose)
+    from datetime import date, timedelta
+    from pathlib import Path
+
+    import pandas as pd
+
+    from nba_engine.data.schedule import kalshi_event_ticker
+    from nba_engine.models.pregame import load_history
+    from nba_engine.models.tuning import load_params
+    from nba_engine.predict.forecast import fetch_schedule, forecast_games, kalshi_open_prices
+    from nba_engine.predict.lineups import fetch_injuries
+
+    s = get_settings()
+    hist = load_history(s.data_dir)
+    now = pd.Timestamp.now(tz="UTC")
+    sched = fetch_schedule(s.data_dir, date.today(), date.today() + timedelta(days=days))
+    fut = sched[~sched["completed"] & (sched["tip_utc"] > now)]
+    if fut.empty:
+        typer.echo("No upcoming games found.")
+        raise typer.Exit(0)
+    inj = fetch_injuries()
+    pred, model = forecast_games(hist, fut, now, load_params(), injuries=inj)
+    pred["event_ticker"] = [kalshi_event_ticker(a, h, t) for a, h, t in
+                            zip(pred["away"], pred["home"], pred["tip_utc"], strict=True)]
+    try:
+        k = kalshi_open_prices()
+        km = k.merge(pred[["event_ticker", "home", "away"]], on="event_ticker")
+        home_mid = km[km["team"] == km["home"]].set_index("event_ticker")["mid"]
+        away_mid = km[km["team"] == km["away"]].set_index("event_ticker")["mid"]
+        pred["kalshi_p_home"] = pd.concat([home_mid, 1 - away_mid], axis=1).mean(axis=1
+                                                                                ).reindex(
+            pred["event_ticker"]).to_numpy()
+    except Exception as e:  # noqa: BLE001 - comparison column is optional
+        typer.echo(f"(Kalshi prices unavailable: {e})")
+        pred["kalshi_p_home"] = float("nan")
+    out_injured = inj[inj["status"].isin({"Out", "Doubtful"})].groupby("team")["player"].apply(
+        lambda x: ", ".join(x.dropna()[:4]))
+    pred["home_out"] = pred["home"].map(out_injured).fillna("")
+    pred["away_out"] = pred["away"].map(out_injured).fillna("")
+    cols = ["tip_utc", "away", "home", "mu", "p_home", "kalshi_p_home", "away_out", "home_out"]
+    res = pred[cols].sort_values("tip_utc")
+    Path(out).parent.mkdir(parents=True, exist_ok=True)
+    res.to_csv(out, index=False)
+    with pd.option_context("display.width", 200, "display.max_colwidth", 40):
+        typer.echo(res.round({"mu": 1, "p_home": 3, "kalshi_p_home": 3}).to_string(index=False))
+    typer.echo(f"\nSaved {out} (model sigma {model.sigma_:.1f} pts)")
+
+
+@app.command()
+def project(
+    sims: int = typer.Option(20000, help="Monte Carlo simulations"),
+    out: str = typer.Option("reports/predictions/season_projection.csv", help="CSV output"),
+    verbose: bool = typer.Option(False, "-v"),
+) -> None:
+    """Simulate the rest of the current season: wins, playoff, seed and title odds."""
+    _setup_logging(verbose)
+    from datetime import date
+    from pathlib import Path
+
+    import pandas as pd
+
+    from nba_engine.models.pregame import load_history
+    from nba_engine.models.tuning import load_params
+    from nba_engine.predict.forecast import fetch_schedule, project_season
+    from nba_engine.predict.lineups import fetch_injuries
+    from nba_engine.predict.season import SimConfig
+
+    s = get_settings()
+    hist = load_history(s.data_dir)
+    now = pd.Timestamp.now(tz="UTC")
+    season = int(hist["games"]["season"].max())
+    sched = fetch_schedule(s.data_dir, date(season - 1, 10, 1), date(season, 4, 30))
+    table, _ = project_season(hist, sched, season, now, load_params(),
+                              injuries=fetch_injuries(), cfg=SimConfig(n_sims=sims))
+    Path(out).parent.mkdir(parents=True, exist_ok=True)
+    table.to_csv(out, index=False)
+    show = ["team", "wins_now", "losses_now", "proj_wins", "wins_p10", "wins_p90",
+            "p_playoffs", "p_seed1", "p_finals", "p_title"]
+    with pd.option_context("display.width", 200):
+        typer.echo(table[show].round(3).to_string(index=False))
+    typer.echo(f"\nSaved {out}")
+
+
+@app.command("validate-projections")
+def validate_projections(
+    seasons: str = typer.Option("2023,2024,2025,2026", help="ESPN season years"),
+    month_day: str = typer.Option("11-12", help="Cutoff date within each season (MM-DD)"),
+    out: str = typer.Option("reports/predictions/projection_backtest.csv", help="CSV output"),
+    verbose: bool = typer.Option(False, "-v"),
+) -> None:
+    """Backtest season projections: project past seasons from the same calendar date and
+    compare with final records."""
+    _setup_logging(verbose)
+    from pathlib import Path
+
+    import numpy as np
+    import pandas as pd
+
+    from nba_engine.models.pregame import load_history
+    from nba_engine.models.tuning import load_params
+    from nba_engine.predict.forecast import backtest_projection
+    from nba_engine.predict.season import SimConfig
+
+    s = get_settings()
+    hist = load_history(s.data_dir)
+    params = load_params()
+    mm, dd = (int(x) for x in month_day.split("-"))
+    frames = []
+    for yr in (int(x) for x in seasons.split(",")):
+        cutoff = pd.Timestamp(year=yr - 1, month=mm, day=dd, tz="UTC")
+        frames.append(backtest_projection(hist, yr, cutoff, params, SimConfig(n_sims=5000)))
+    t = pd.concat(frames, ignore_index=True)
+    Path(out).parent.mkdir(parents=True, exist_ok=True)
+    t.to_csv(out, index=False)
+    for col in ("proj_wins", "naive_pace_wins", "naive_last_season_wins"):
+        err = t[col] - t["actual_wins"]
+        typer.echo(f"{col:<24} MAE {err.abs().mean():5.2f}  RMSE {np.sqrt((err**2).mean()):5.2f}")
+    inside = ((t["actual_wins"] >= t["wins_p10"]) & (t["actual_wins"] <= t["wins_p90"])).mean()
+    typer.echo(f"80% interval coverage: {inside:.0%}")
+    typer.echo(f"Saved {out}")
+
+
+@app.command()
+def figures() -> None:
+    """Render report figures to reports/figures/."""
+    from nba_engine.viz import make_all
+
+    for path in make_all(get_settings().data_dir):
+        typer.echo(f"wrote {path}")
 
 
 @app.command("check-auth")
