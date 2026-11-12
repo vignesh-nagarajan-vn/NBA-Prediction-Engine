@@ -1,4 +1,19 @@
-# Findings so far (Phases 1 and 2)
+# Findings so far (Phases 1-3)
+
+> **Update, Nov 12 2026:** model v2 and Phase 3 are done. The summary with charts is in
+> [BRIEF.md](BRIEF.md). In short:
+>
+> - Lineup-stint player ratings and pace-adjusted efficiency narrowed the pregame gap to
+>   the closing line from +0.019 to +0.016 (+0.0135 on the 2022-23+ holdout). That still
+>   fails the 0.005 accuracy gate; calibration passes.
+> - The in-game model beats the textbook formula (0.454 vs 0.485 log loss) but not Kalshi's
+>   live price (0.443 vs 0.434). Fading in-game swings loses 8-10% after fees, so Phase 3's
+>   gate also fails.
+> - Rest-of-season projections miss by 6.5 wins on average in backtests, versus about 9
+>   for naive baselines.
+>
+> The sections below are the original Phase 1-2 write-up and its v1 numbers.
+
 
 Data: 15,600 completed NBA games from 2014-15 to Nov 2026 (ESPN: results, 403k player
 box-score rows, closing lines) and every settled Kalshi `KXNBAGAME` market since April 2025
