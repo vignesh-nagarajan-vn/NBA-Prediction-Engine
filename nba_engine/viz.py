@@ -42,7 +42,7 @@ def _style() -> None:
 
 def _save(fig, out: Path, name: str, note: str | None = None) -> Path:
     if note:
-        fig.text(0.01, 0.01, note, fontsize=8, color=INK2, ha="left", va="bottom")
+        fig.text(0.01, -0.01, note, fontsize=8, color=INK2, ha="left", va="top")
     out.mkdir(parents=True, exist_ok=True)
     path = out / f"{name}.png"
     fig.savefig(path, dpi=160, bbox_inches="tight")
@@ -60,6 +60,9 @@ def accuracy_by_season(pred: pd.DataFrame, out: Path, holdout_from: int = 2023) 
         rows.append((s, log_loss(d["home_win"], d["p_model"]),
                      log_loss(d["home_win"], d["p_spread"]), len(d)))
     t = pd.DataFrame(rows, columns=["season", "model", "market", "n"])
+    present = list(t["season"])
+    # Reindex to every season so seasons without closing lines leave a gap in the lines.
+    t = t.set_index("season").reindex(range(min(present), max(present) + 1)).reset_index()
     fig, ax = plt.subplots(figsize=(8.5, 4.2))
     lo = t["season"].min() - 0.5
     ax.axvspan(holdout_from - 0.5, t["season"].max() + 0.5, color="#f0efec", zorder=0)
@@ -68,8 +71,8 @@ def accuracy_by_season(pred: pd.DataFrame, out: Path, holdout_from: int = 2023) 
     ax.plot(t["season"], t["model"], "-o", color=BLUE, label="Our model")
     ax.plot(t["season"], t["market"], "-o", color=ORANGE, label="Sportsbook closing line")
     ax.set_xlim(lo, t["season"].max() + 0.5)
-    ax.set_xticks(t["season"])
-    ax.set_xticklabels([f"{s - 1 - 2000:02d}-{s - 2000:02d}" for s in t["season"]])
+    ax.set_xticks(present)
+    ax.set_xticklabels([f"{s - 1 - 2000:02d}-{s - 2000:02d}" for s in present])
     ax.set_ylabel("Log loss (lower is better)")
     ax.set_title("Pregame accuracy by season")
     ax.legend(loc="upper left")
@@ -128,7 +131,7 @@ def this_season(pred: pd.DataFrame, season: int, out: Path) -> Path:
                 np.cumsum(-(y * np.log(p) + (1 - y) * np.log(1 - p))) / xs,
                 color=AQUA, label="Sportsbook closing line")
     ax.axhline(np.log(2), color=NEUTRAL, linewidth=1)
-    ax.text(len(d), np.log(2) + 0.004, "coin flip", ha="right", color=INK2, fontsize=8)
+    ax.text(2, np.log(2) + 0.004, "coin flip", ha="left", color=INK2, fontsize=8)
     ax.set_ylim(0.45, 0.75)
     ax.set_xlabel("Games played this season")
     ax.set_ylabel("Running log loss")
@@ -140,29 +143,44 @@ def this_season(pred: pd.DataFrame, season: int, out: Path) -> Path:
                  "Model frozen at the start of the season (trained only on prior seasons).")
 
 
+FEATURE_GROUPS = {
+    "Team ratings (margin, efficiency, Elo)": ["rating_margin_pred", "eff_margin_pred",
+                                               "elo_diff"],
+    "Lineup strength (player ratings)": ["player_strength_diff"],
+    "Regulars missing": ["home_out_regulars", "away_out_regulars"],
+    "Back-to-backs": ["home_b2b", "away_b2b"],
+    "Playoff game": ["playoffs"],
+    "3 games in 4 nights": ["home_3in4", "away_3in4"],
+    "Rest days": ["rest_diff"],
+    "Time-zone shifts": ["home_tz_abs", "away_tz_abs"],
+    "Altitude (DEN/UTA home)": ["altitude_home"],
+    "Travel distance": ["home_travel_k", "away_travel_k"],
+    "Home court": ["home_court"],
+}
+
+
 def feature_weights(coef: pd.DataFrame, X: pd.DataFrame, out: Path) -> Path:
-    c = coef[coef["feature"] != "intercept"].copy()
-    c["impact"] = [v * X[f].std() for f, v in zip(c["feature"], c["coef"], strict=True)]
-    c = c.reindex(c["impact"].abs().sort_values().index)
-    names = {"player_strength_diff": "Lineup strength (player ratings)",
-             "eff_margin_pred": "Pace-adjusted efficiency", "elo_diff": "Elo",
-             "rating_margin_pred": "Team margin rating", "home_court": "Home court",
-             "rest_diff": "Rest advantage", "home_b2b": "Home back-to-back",
-             "away_b2b": "Away back-to-back", "playoffs": "Playoff game",
-             "altitude_home": "Altitude (DEN/UTA home)", "home_3in4": "Home 3 games in 4 nights",
-             "away_3in4": "Away 3 games in 4 nights", "home_out_regulars": "Home regulars out",
-             "away_out_regulars": "Away regulars out", "home_travel_k": "Home travel",
-             "away_travel_k": "Away travel", "home_tz_abs": "Home time-zone shift",
-             "away_tz_abs": "Away time-zone shift"}
-    fig, ax = plt.subplots(figsize=(7.5, 5.6))
-    ax.barh([names.get(f, f) for f in c["feature"]], c["impact"],
-            color=[BLUE if v >= 0 else ORANGE for v in c["impact"]], height=0.6)
-    ax.axvline(0, color=INK2, linewidth=0.8)
-    ax.set_xlabel("Effect of a typical (1 sd) change on predicted home margin, points")
+    """How much each group of inputs moves the predicted margin: the standard deviation of
+    the group's combined contribution across games. Correlated features (the three team
+    ratings) are grouped so they don't appear to fight each other."""
+    w = dict(zip(coef["feature"], coef["coef"], strict=True))
+    rows = []
+    for name, feats in FEATURE_GROUPS.items():
+        feats = [f for f in feats if f in w and f in X]
+        if not feats:
+            continue
+        contrib = sum(X[f].fillna(0) * w[f] for f in feats)
+        rows.append((name, float(contrib.std())))
+    t = pd.DataFrame(rows, columns=["group", "impact"]).sort_values("impact")
+    fig, ax = plt.subplots(figsize=(7.5, 4.8))
+    ax.barh(t["group"], t["impact"], color=BLUE, height=0.55)
+    for yv, v in enumerate(t["impact"]):
+        ax.text(v + 0.05, yv, f"{v:.1f}", va="center", fontsize=9, color=INK)
+    ax.set_xlabel("Typical swing in predicted home margin, points (sd across games)")
     ax.set_title("What drives the pregame prediction")
     ax.grid(axis="y", visible=False)
-    return _save(fig, out, "feature_weights", "Blue raises the home team's expected "
-                 "margin, orange lowers it. Linear part of the ensemble, latest model.")
+    return _save(fig, out, "feature_weights", "Linear part of the ensemble, latest model. "
+                 "Related inputs are grouped because they share credit with each other.")
 
 
 def top_players(players: pd.DataFrame, out: Path, k: int = 20) -> Path:
@@ -210,7 +228,8 @@ def title_odds(table: pd.DataFrame, out: Path, k: int = 12) -> Path:
 
 
 def projection_backtest(bt: pd.DataFrame, out: Path) -> Path:
-    fig, axes = plt.subplots(1, 2, figsize=(11, 4.8), gridspec_kw={"width_ratios": [1.3, 1]})
+    fig, axes = plt.subplots(1, 2, figsize=(11.5, 4.8), gridspec_kw={"width_ratios": [1.3, 1]})
+    fig.subplots_adjust(wspace=0.55)
     ax = axes[0]
     lim = (10, 70)
     ax.plot(lim, lim, color=NEUTRAL, linewidth=1)
@@ -226,7 +245,7 @@ def projection_backtest(bt: pd.DataFrame, out: Path) -> Path:
                ("naive_last_season_wins", "Last season's record")]
     mae = [float((bt[c] - bt["actual_wins"]).abs().mean()) for c, _ in methods]
     ax2.barh([m for _, m in methods][::-1], mae[::-1], color=[NEUTRAL, NEUTRAL, BLUE],
-             height=0.55)
+             height=0.45)
     for yv, v in enumerate(mae[::-1]):
         ax2.text(v + 0.1, yv, f"{v:.1f}", va="center", fontsize=9)
     ax2.set_xlabel("Average miss, wins")
