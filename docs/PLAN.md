@@ -5,11 +5,12 @@
 | Phase | State |
 |---|---|
 | 0. Foundation + recorder | Built. The REST-polling recorder is verified on live games. The WebSocket gate is pending a Kalshi API key. |
-| 1. History + pregame model | Built. Gate **failed** on accuracy (log loss +0.019 vs closing line) and passed on calibration. |
+| 1. History + pregame model | Built (v2: lineup-stint player ratings, efficiency, tuned on 2016-17 to 2021-22). Gate **failed** on accuracy (holdout log loss +0.0135 vs closing line) and passed on calibration. |
 | 2. Debias + blend + pregame backtest | Built. Gate **failed**: no variant beats Kalshi's own price, and every strategy loses after fees. |
-| 3. In-game WP + overreaction study | Next. All required data is already cached. |
+| 3. In-game WP + overreaction study | Built. The model beats the textbook formula but not Kalshi's live price; fading swings loses 8-10%. Gate **failed**. |
+| Forecasts | Built: next-7-day game probabilities with injury reports, and rest-of-season simulation (backtested average miss 6.5 wins). |
 
-See [reports/FINDINGS.md](../reports/FINDINGS.md) for the evidence behind each verdict.
+See [reports/BRIEF.md](../reports/BRIEF.md) and [reports/FINDINGS.md](../reports/FINDINGS.md) for the evidence behind each verdict.
 
 ## Context
 

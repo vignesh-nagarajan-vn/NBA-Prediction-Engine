@@ -3,8 +3,9 @@
 An engine that estimates fair, sentiment-free win probabilities for NBA games and trades the
 gap against Kalshi's `KXNBAGAME` markets. The full roadmap is in [docs/PLAN.md](docs/PLAN.md).
 
-**Status: Phases 0-2 built; pregame strategies failed their gates.** No trading yet. Results
-are in [reports/FINDINGS.md](reports/FINDINGS.md).
+**Status: Phases 0-3 built.** The pregame and in-game models are validated on held-out
+seasons and the current season. No trading strategy has passed its gate, so nothing trades.
+Start with [reports/BRIEF.md](reports/BRIEF.md).
 
 ## Setup
 
@@ -24,29 +25,49 @@ uv run nba-engine record               # always-on recorder (Ctrl+C to stop)
 uv run nba-engine check-auth           # verify a configured API key (read-only)
 ```
 
-## History and the pregame model
+## History and models
 
 ```bash
 uv run nba-engine backfill espn     # 2014-15 to today: games, box scores, closing lines (~1.5h first run)
 uv run nba-engine backfill kalshi   # every settled KXNBAGAME market + 1-minute candles (~25 min)
-uv run nba-engine train             # walk-forward model + reports/phase1_pregame.md
-uv run nba-engine backtest          # fair value vs Kalshi + reports/phase2_pregame_backtest.md
+uv run nba-engine build-pbp         # play-by-play + lineup stints from the cached summaries (~10 min)
+uv run nba-engine tune              # pick settings on 2016-17..2021-22 only (~45 min)
+uv run nba-engine train             # walk-forward pregame model + reports/phase1_pregame.md
+uv run nba-engine backtest          # pregame fair value vs Kalshi + reports/phase2_pregame_backtest.md
+uv run nba-engine ingame            # in-game win probability vs Kalshi + reports/phase3_ingame.md
 ```
 
 Raw responses are cached under `data/cache/` so reruns only fetch what is new
 (`backfill espn --tables-only` rebuilds the tables without any network calls).
 
-The pregame model predicts the home margin from:
+The **pregame model** predicts the home margin and turns it into a win probability. Its inputs:
 
-- **Elo** and **decay-weighted team margin ratings**, both updated game by game
-- **Player-impact ratings** (game-level adjusted plus-minus with ridge shrinkage), so a
-  team's strength drops when its best players are out
+- **Lineup strength:** player ratings from five-on-five lineup stints reconstructed from
+  play-by-play (who was actually on the floor together), shrunk toward a box-score prior.
+  Injured or resting players drop out of the projected lineup.
+- **Team ratings:** Elo, decay-weighted margin ratings and pace-adjusted offense/defense
+  efficiency, all updated game by game.
 - **Schedule context:** rest, back-to-backs, 3-in-4, travel distance, time-zone shifts,
-  altitude, playoffs
+  altitude, playoffs.
 
-It converts that margin into a win probability. Each season is predicted by a model trained
-only on earlier seasons, and the report compares it with sportsbook closing lines and
-Kalshi's pre-tip prices.
+A ridge regression and a small gradient-boosted tree model (pure numpy) are averaged. Each
+season is predicted by a model trained only on earlier seasons, and settings were tuned on
+2016-17 to 2021-22 only, so 2022-23 onward is a true holdout.
+
+The **in-game model** is a fitted version of the random-walk win-probability formula
+(score margin, time left, possession, pregame expected margin), trained on play-by-play.
+
+## Forecasts
+
+```bash
+uv run nba-engine predict                # next 7 days: model vs Kalshi, injured players removed
+uv run nba-engine project                # rest-of-season simulation: wins, seeds, playoff and title odds
+uv run nba-engine validate-projections   # backtest projections from Nov 12 of past seasons
+uv run nba-engine figures                # charts to reports/figures/
+```
+
+Outputs land in `reports/predictions/` (CSV) and `reports/figures/` (PNG). The brief with
+the headline results is [reports/BRIEF.md](reports/BRIEF.md).
 
 ## Recorder
 
@@ -73,6 +94,6 @@ Query recordings with DuckDB, for example:
 ## Tests
 
 ```bash
-uv run pytest -m "not network"   # offline unit tests
-uv run pytest                    # plus live public-endpoint smoke tests
+uv run python -m pytest -m "not network"   # offline unit tests
+uv run python -m pytest                    # plus live public-endpoint smoke tests
 ```
