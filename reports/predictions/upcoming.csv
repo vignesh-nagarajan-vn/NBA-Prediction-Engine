@@ -1,0 +1,57 @@
+tip_utc,away,home,mu,p_home,kalshi_p_home,away_out,home_out
+2026-11-13 00:00:00+00:00,TOR,PHI,5.6522167663675,0.6639654312896546,0.79,"Kawhi Leonard, Scottie Barnes, Nate Bittle","Adem Bona, Dominick Barlow, Ariel Hukporti"
+2026-11-13 00:00:00+00:00,DET,WAS,-12.418898302475686,0.17616348519474928,0.2125,"Isaiah Joe, Jalen Duren","Tristan Vukcevic, Reece Beekman, Justin Champagnie, Jamir Watkins"
+2026-11-13 01:00:00+00:00,DAL,MIN,5.0030260937417665,0.6460545910602022,0.66,"Dereck Lively II, Tarik Biberovic, Sergio de Larrea","Anthony Edwards, Donte DiVincenzo"
+2026-11-13 02:00:00+00:00,CHA,PHX,6.0244020613180895,0.674071501250298,0.6875,"Grant Williams, Brandon Miller, Kon Knueppel, Dennis Schroder",Mark Williams
+2026-11-14 00:00:00+00:00,NYK,IND,-5.154998604799613,0.3497217019898936,0.2675,,"Tyrese Haliburton, Johnny Furphy, Ben Sheppard"
+2026-11-14 00:00:00+00:00,MIL,ORL,8.454778948843794,0.7366989610246296,0.74,Myles Turner,"Tristan da Silva, Jamal Cain, Jalen Suggs, Jonathan Isaac"
+2026-11-14 01:00:00+00:00,MEM,NOP,-3.9390770665115746,0.3839937934638733,0.40249999999999997,"Scotty Pippen Jr., Quinten Post, Richie Saunders","Trey Murphy III, Bennedict Mathurin, Trendon Watford, Yves Missi"
+2026-11-14 01:00:00+00:00,ATL,CHI,-5.38558904105709,0.34334851934936217,0.275,"Asa Newell, Keshon Gilbert, Mouhamed Gueye, Henri Veesaar","Dailyn Swain, Norman Powell, Tobe Awaka"
+2026-11-14 01:00:00+00:00,CLE,MIA,2.5158392568997536,0.5747255328921561,0.5625,Sam Merrill,
+2026-11-14 01:30:00+00:00,UTA,HOU,18.103604614352165,0.9124231109009033,0.8825000000000001,"Lauri Markkanen, Jusuf Nurkic, Jaren Jackson Jr.","Clint Capela, Steven Adams"
+2026-11-14 02:30:00+00:00,GSW,SAS,5.862060696575956,0.6696785545383797,0.8125,"Gary Payton II, Brandon Williams, Kristaps Porzingis, Moses Moody","Devin Vassell, Tobias Harris, Jayden Quaintance"
+2026-11-14 03:00:00+00:00,POR,SAC,-8.829249322006639,0.2542270933588969,0.26999999999999996,"Chris Youngblood, Vit Krejci, Ja Morant, Shaedon Sharpe","Maxime Raynaud, Ben Simmons"
+2026-11-14 03:30:00+00:00,OKC,LAC,-2.3801462562732913,0.4292611026146038,0.22749999999999998,"Jaylin Williams, Ajay Mitchell, Thomas Sorber, Cason Wallace","Yanic Konan Niederhauser, Brandon Ingram, Bradley Beal, Jordan Miller"
+2026-11-15 00:00:00+00:00,DEN,NOP,-8.666730372828102,0.25814491671551226,0.21999999999999997,Julian Strawther,"Trey Murphy III, Bennedict Mathurin, Trendon Watford, Yves Missi"
+2026-11-15 00:30:00+00:00,DAL,CLE,-0.4715160701601107,0.485915028404356,0.5925,"Dereck Lively II, Tarik Biberovic, Sergio de Larrea",Sam Merrill
+2026-11-15 01:00:00+00:00,DET,MIA,-3.4761693029128344,0.39730083307920894,0.4475,"Isaiah Joe, Jalen Duren",
+2026-11-15 01:00:00+00:00,BKN,MEM,5.566076048070946,0.6616090940330841,0.6875,"Nolan Traore, Mikel Brown Jr.","Scotty Pippen Jr., Quinten Post, Richie Saunders"
+2026-11-15 01:00:00+00:00,CHI,MIN,15.546222769417753,0.8778485841197022,0.8275,"Dailyn Swain, Norman Powell, Tobe Awaka","Anthony Edwards, Donte DiVincenzo"
+2026-11-15 18:00:00+00:00,IND,PHI,6.077467243640096,0.675502255171446,0.78,"Tyrese Haliburton, Johnny Furphy, Ben Sheppard","Adem Bona, Dominick Barlow, Ariel Hukporti"
+2026-11-15 21:00:00+00:00,LAL,PHX,-2.923659326206611,0.4133402801214531,0.395,Quentin Grimes,Mark Williams
+2026-11-15 21:30:00+00:00,CHA,LAC,5.026799083964672,0.6467165065581075,0.6200000000000001,"Grant Williams, Brandon Miller, Kon Knueppel, Dennis Schroder","Yanic Konan Niederhauser, Brandon Ingram, Bradley Beal, Jordan Miller"
+2026-11-15 22:00:00+00:00,SAS,UTA,-13.374312976859375,0.15825903267870645,0.13999999999999999,"Devin Vassell, Tobias Harris, Jayden Quaintance","Lauri Markkanen, Jusuf Nurkic, Jaren Jackson Jr."
+2026-11-15 23:00:00+00:00,NYK,TOR,-3.1805556747604213,0.4058627949249596,0.375,,"Kawhi Leonard, Scottie Barnes, Nate Bittle"
+2026-11-15 23:00:00+00:00,DAL,BOS,11.30804452316982,0.801471874161343,0.785,"Dereck Lively II, Tarik Biberovic, Sergio de Larrea",
+2026-11-16 00:00:00+00:00,HOU,WAS,-11.767175181796162,0.18908425863428702,0.23,"Clint Capela, Steven Adams","Tristan Vukcevic, Reece Beekman, Justin Champagnie, Jamir Watkins"
+2026-11-16 01:00:00+00:00,ATL,MIL,-6.519495787285654,0.3126818388649077,0.355,"Asa Newell, Keshon Gilbert, Mouhamed Gueye, Henri Veesaar",Myles Turner
+2026-11-16 02:00:00+00:00,OKC,SAC,-7.123099351995706,0.296854703481463,0.205,"Jaylin Williams, Ajay Mitchell, Thomas Sorber, Cason Wallace","Maxime Raynaud, Ben Simmons"
+2026-11-17 00:00:00+00:00,CHI,CLE,10.295366061459962,0.7796607823315629,,"Dailyn Swain, Norman Powell, Tobe Awaka",Sam Merrill
+2026-11-17 00:00:00+00:00,MEM,WAS,-7.209724149590555,0.2946137130427109,,"Scotty Pippen Jr., Quinten Post, Richie Saunders","Tristan Vukcevic, Reece Beekman, Justin Champagnie, Jamir Watkins"
+2026-11-17 00:00:00+00:00,ORL,BOS,8.922762815410168,0.7480130109846379,0.7124999999999999,"Tristan da Silva, Jamal Cain, Jalen Suggs, Jonathan Isaac",
+2026-11-17 00:30:00+00:00,PHI,BKN,-4.064145526590671,0.38042112268612566,,"Adem Bona, Dominick Barlow, Ariel Hukporti","Nolan Traore, Mikel Brown Jr."
+2026-11-17 00:30:00+00:00,HOU,MIA,-1.7439125240185613,0.4480433513395553,,"Clint Capela, Steven Adams",
+2026-11-17 01:00:00+00:00,POR,MIN,0.9488124477031188,0.5283246622452131,0.47750000000000004,"Chris Youngblood, Vit Krejci, Ja Morant, Shaedon Sharpe","Anthony Edwards, Donte DiVincenzo"
+2026-11-17 01:00:00+00:00,GSW,NOP,-7.793614075135727,0.2797161172173991,0.3325,"Gary Payton II, Brandon Williams, Kristaps Porzingis, Moses Moody","Trey Murphy III, Bennedict Mathurin, Trendon Watford, Yves Missi"
+2026-11-17 02:00:00+00:00,PHX,DEN,8.792248364943667,0.7448836787034737,,Mark Williams,Julian Strawther
+2026-11-18 00:30:00+00:00,NYK,TOR,-4.137072021651026,0.37834260097003125,,,"Kawhi Leonard, Scottie Barnes, Nate Bittle"
+2026-11-18 01:00:00+00:00,DET,SAS,3.7896066391606125,0.6117235333035154,,"Isaiah Joe, Jalen Duren","Devin Vassell, Tobias Harris, Jayden Quaintance"
+2026-11-18 01:00:00+00:00,POR,MIN,0.9777654936996842,0.5291874693823129,,"Chris Youngblood, Vit Krejci, Ja Morant, Shaedon Sharpe","Anthony Edwards, Donte DiVincenzo"
+2026-11-18 03:30:00+00:00,UTA,LAC,7.88059997906803,0.7224715970455949,,"Lauri Markkanen, Jusuf Nurkic, Jaren Jackson Jr.","Yanic Konan Niederhauser, Brandon Ingram, Bradley Beal, Jordan Miller"
+2026-11-18 04:00:00+00:00,CHA,LAL,10.434481443762216,0.7827360043210623,,"Grant Williams, Brandon Miller, Kon Knueppel, Dennis Schroder",Quentin Grimes
+2026-11-19 00:00:00+00:00,MEM,CLE,0.5547668100108837,0.5165704867992926,,"Scotty Pippen Jr., Quinten Post, Richie Saunders",Sam Merrill
+2026-11-19 00:00:00+00:00,HOU,IND,-6.282286225096995,0.3189997850147876,,"Clint Capela, Steven Adams","Tyrese Haliburton, Johnny Furphy, Ben Sheppard"
+2026-11-19 00:00:00+00:00,MIL,MIA,12.563864972773718,0.8266327483227713,,Myles Turner,
+2026-11-19 00:00:00+00:00,PHI,ORL,-1.5640436457616382,0.45337633944396866,,"Adem Bona, Dominick Barlow, Ariel Hukporti","Tristan da Silva, Jamal Cain, Jalen Suggs, Jonathan Isaac"
+2026-11-19 00:30:00+00:00,CHI,BKN,4.127257311742376,0.6213778675296718,,"Dailyn Swain, Norman Powell, Tobe Awaka","Nolan Traore, Mikel Brown Jr."
+2026-11-19 00:30:00+00:00,WAS,TOR,7.263037990262092,0.7067616288560139,,"Tristan Vukcevic, Reece Beekman, Justin Champagnie, Jamir Watkins","Kawhi Leonard, Scottie Barnes, Nate Bittle"
+2026-11-19 01:00:00+00:00,DET,NOP,-6.718410089787395,0.3074258655183594,,"Isaiah Joe, Jalen Duren","Trey Murphy III, Bennedict Mathurin, Trendon Watford, Yves Missi"
+2026-11-19 01:00:00+00:00,ATL,OKC,3.288474705443762,0.5972683576526637,,"Asa Newell, Keshon Gilbert, Mouhamed Gueye, Henri Veesaar","Jaylin Williams, Ajay Mitchell, Thomas Sorber, Cason Wallace"
+2026-11-19 02:00:00+00:00,BOS,DEN,-0.5725012869853969,0.48290011658828846,,,Julian Strawther
+2026-11-19 02:30:00+00:00,GSW,DAL,-1.887781705903769,0.4437844315872159,,"Gary Payton II, Brandon Williams, Kristaps Porzingis, Moses Moody","Dereck Lively II, Tarik Biberovic, Sergio de Larrea"
+2026-11-19 03:00:00+00:00,PHX,SAC,-2.871814746586584,0.4148532342127268,,Mark Williams,"Maxime Raynaud, Ben Simmons"
+2026-11-19 03:00:00+00:00,UTA,LAL,15.011789921851282,0.8695515845728645,,"Lauri Markkanen, Jusuf Nurkic, Jaren Jackson Jr.",Quentin Grimes
+2026-11-20 01:00:00+00:00,GSW,MEM,-1.0373947023125314,0.46903600317081723,,"Gary Payton II, Brandon Williams, Kristaps Porzingis, Moses Moody","Scotty Pippen Jr., Quinten Post, Richie Saunders"
+2026-11-20 01:00:00+00:00,POR,MIL,-13.535595971198752,0.15535872767624986,,"Chris Youngblood, Vit Krejci, Ja Morant, Shaedon Sharpe",Myles Turner
+2026-11-20 01:00:00+00:00,NYK,MIN,-0.006924353935257144,0.499793115015928,,,"Anthony Edwards, Donte DiVincenzo"
+2026-11-20 01:00:00+00:00,LAC,SAS,12.527250320855277,0.8259291765806656,,"Yanic Konan Niederhauser, Brandon Ingram, Bradley Beal, Jordan Miller","Devin Vassell, Tobias Harris, Jayden Quaintance"
