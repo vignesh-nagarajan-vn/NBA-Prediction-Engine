@@ -24,7 +24,7 @@ HOLDOUT_FROM = 2023
 PARAMS_PATH = Path(__file__).resolve().parents[1] / "config" / "model_params.json"
 
 DEFAULT_PARAMS = {
-    "player": {"ridge": 8.0, "half_life_days": 365.0, "box_prior": True},
+    "player": {"ridge": 3.0, "half_life_days": 365.0, "box_prior": True, "use_stints": True},
     "team": {"half_life_days": 60.0, "ridge": 4.0},
     "eff": {"half_life_days": 75.0, "ridge": 3.0},
     "gbm_weight": 0.5,
@@ -45,15 +45,17 @@ def score(pred: pd.DataFrame, seasons) -> dict:
                                                                      d["p_spread"])}
 
 
-def tune(hist: dict, out_csv: Path) -> dict:
-    grid_data = list(itertools.product(
-        [{"ridge": 8.0, "half_life_days": 365.0, "box_prior": True},
-         {"ridge": 20.0, "half_life_days": 365.0, "box_prior": True},
-         {"ridge": 8.0, "half_life_days": 365.0, "box_prior": False}],
-        [{"half_life_days": 60.0, "ridge": 4.0}],
-        [{"half_life_days": 75.0, "ridge": 3.0}, {"half_life_days": 150.0, "ridge": 3.0}],
-    ))
-    gbm_weights = [0.0, 0.25, 0.5, 0.75]
+def tune(hist: dict, out_csv: Path, players: list[dict] | None = None,
+         gbm_weights: list[float] | None = None) -> dict:
+    players = players or [
+        {"ridge": 3.0, "half_life_days": 365.0, "box_prior": True, "use_stints": True},
+        {"ridge": 8.0, "half_life_days": 365.0, "box_prior": True, "use_stints": True},
+        {"ridge": 3.0, "half_life_days": 730.0, "box_prior": True, "use_stints": True},
+        {"ridge": 8.0, "half_life_days": 365.0, "box_prior": True, "use_stints": False},
+    ]
+    grid_data = list(itertools.product(players, [{"half_life_days": 60.0, "ridge": 4.0}],
+                                       [{"half_life_days": 75.0, "ridge": 3.0}]))
+    gbm_weights = gbm_weights or [0.0, 0.3, 0.6]
     rows, best = [], None
     for player, team, eff in grid_data:
         df = build_dataset(hist, player_kwargs=player, team_kwargs=team, eff_kwargs=eff)

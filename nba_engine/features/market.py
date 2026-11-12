@@ -68,4 +68,4 @@ def kalshi_pretip(markets: pd.DataFrame, candles: pd.DataFrame, games: pd.DataFr
             "kalshi_spread": float(np.nanmean([v[1] for v in vals]))
             if any(pd.notna(v[1]) for v in vals) else np.nan}
            for gid, vals in rows.items()]
-    return pd.DataFrame(out)
+    return pd.DataFrame(out, columns=["game_id", "kalshi_p_home", "kalshi_spread"])

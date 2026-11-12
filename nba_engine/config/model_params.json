@@ -1,0 +1,17 @@
+{
+  "player": {
+    "ridge": 8.0,
+    "half_life_days": 730.0,
+    "box_prior": true,
+    "use_stints": true
+  },
+  "team": {
+    "half_life_days": 60.0,
+    "ridge": 4.0
+  },
+  "eff": {
+    "half_life_days": 75.0,
+    "ridge": 3.0
+  },
+  "gbm_weight": 0.3
+}

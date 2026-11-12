@@ -44,7 +44,8 @@ def is_available(row) -> bool:
 class PlayerRatings:
     def __init__(self, half_life_days: float = 365.0, ridge: float = 8.0,
                  solve_every_days: int = 7, ewma_alpha: float = 0.25,
-                 box_prior: bool = True, prior_fit_season: int = 2017):
+                 box_prior: bool = True, prior_fit_season: int = 2017,
+                 garbage_weight: float = 1.0):
         self.hl = half_life_days
         self.ridge = ridge
         self.solve_every = solve_every_days
@@ -52,6 +53,9 @@ class PlayerRatings:
         self.box_prior = box_prior
         self.prior_fit_season = prior_fit_season
         self.box_coef_: np.ndarray | None = None
+        # Weight for stints played in garbage time (4th quarter or OT, starting with a lead
+        # of 20+), when lineups and effort no longer reflect real strength.
+        self.garbage_weight = garbage_weight
 
     def run(self, games: pd.DataFrame, box: pd.DataFrame,
             stints: pd.DataFrame | None = None) -> pd.DataFrame:
@@ -67,8 +71,14 @@ class PlayerRatings:
             good = set(cover[cover >= 0.9].index)
             st = st[st["valid"] & st["game_id"].isin(good) & (st["dur_s"] > 0)]
             cols = ["h0", "h1", "h2", "h3", "h4", "a0", "a1", "a2", "a3", "a4"]
+            if "start_margin" in st:
+                garbage = (st["period"] >= 4) & (st["start_margin"].abs() >= 20)
+                st = st.assign(wgt=np.where(garbage, self.garbage_weight, 1.0))
+            else:
+                st = st.assign(wgt=1.0)
             for gid, df in st.groupby("game_id", sort=False):
-                stint_rows[gid] = df[[*cols, "dur_s", "home_pts", "away_pts"]].to_numpy()
+                stint_rows[gid] = df[[*cols, "dur_s", "home_pts", "away_pts", "wgt"]
+                                     ].to_numpy()
         box = box[box["game_id"].isin(set(g["game_id"]))]
         pids = sorted(box["player_id"].unique())
         pidx = {p: i for i, p in enumerate(pids)}
@@ -155,8 +165,11 @@ class PlayerRatings:
                         continue
                     f = float(row[10]) / 2880.0
                     v = np.array([f] * 5 + [-f] * 5 + [f * hca_on])
-                    A[np.ix_(ix, ix)] += w * np.outer(v, v)
-                    b[ix] += w * v * (float(row[11]) - float(row[12]))
+                    ws = w * float(row[13])
+                    if ws <= 0:
+                        continue
+                    A[np.ix_(ix, ix)] += ws * np.outer(v, v)
+                    b[ix] += ws * v * (float(row[11]) - float(row[12]))
                     last_seen_scale[ix] = w
                 continue
             ix = np.array(idx)
@@ -166,6 +179,8 @@ class PlayerRatings:
             last_seen_scale[ix] = w
         df = pd.DataFrame(out)
         self.theta_, self.player_ids_ = theta, pids
+        last_day = np.log2(np.maximum(last_seen_scale[:-1], 1e-300)) * self.hl
+        self.days_since_seen_ = int(day_index[-1]) - last_day
         return df
 
     def _per48(self, box_S, box_M) -> np.ndarray:
@@ -217,9 +232,13 @@ class PlayerRatings:
         theta[active] = np.linalg.solve(sub, b[active] + reg * base[active])
         return theta
 
-    def top_players(self, box: pd.DataFrame, k: int = 15) -> pd.DataFrame:
-        names = box.drop_duplicates("player_id").set_index("player_id")["player"]
-        s = pd.Series(self.theta_[:-1], index=self.player_ids_).sort_values(ascending=False)
+    def top_players(self, box: pd.DataFrame, k: int = 15, active_days: int = 120
+                    ) -> pd.DataFrame:
+        """Highest-rated players who played within the last `active_days`."""
+        names = box.dropna(subset=["player"]).drop_duplicates("player_id").set_index(
+            "player_id")["player"]
+        s = pd.Series(self.theta_[:-1], index=self.player_ids_)
+        s = s[self.days_since_seen_ <= active_days].sort_values(ascending=False)
         return pd.DataFrame({"player": names.reindex(s.index[:k]).values,
                              "rating": s.iloc[:k].round(2).values})
 

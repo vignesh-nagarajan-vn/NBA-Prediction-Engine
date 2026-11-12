@@ -184,7 +184,8 @@ def game_stints(game_id: str, plays: pd.DataFrame, box: pd.DataFrame, home: str,
 def _stint(gid, period, t0, t1, h0, a0, h1, a1, on, home, away, valid) -> dict:
     ok = valid and len(on[home]) == 5 and len(on[away]) == 5
     row = {"game_id": gid, "period": period, "start_s": t0, "end_s": t1,
-           "dur_s": max(0.0, t1 - t0), "home_pts": h1 - h0, "away_pts": a1 - a0, "valid": ok}
+           "dur_s": max(0.0, t1 - t0), "home_pts": h1 - h0, "away_pts": a1 - a0,
+           "start_margin": h0 - a0, "valid": ok}
     for side, t in (("h", home), ("a", away)):
         ids = on[t] if ok else [None] * 5
         for k in range(5):
