@@ -57,3 +57,7 @@ def from_espn(abbr: str) -> Team:
         return BY_ESPN[abbr.upper()]
     except KeyError as e:
         raise KeyError(f"Unknown ESPN team abbreviation {abbr!r}") from e
+
+EAST = {"ATL", "BOS", "BKN", "CHA", "CHI", "CLE", "DET", "IND", "MIA", "MIL", "NYK", "ORL",
+        "PHI", "TOR", "WAS"}
+CONFERENCE = {t.code: ("East" if t.code in EAST else "West") for t in TEAMS}
