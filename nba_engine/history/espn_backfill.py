@@ -216,6 +216,8 @@ def parse_player_box(game_id: str, summary: dict) -> list[dict]:
                 vals = dict(zip(keys, a.get("stats") or [], strict=False))
                 ath = a.get("athlete") or {}
                 fga = str(vals.get("fieldGoalsMade-fieldGoalsAttempted", "0-0")).split("-")
+                fg3 = str(vals.get("threePointFieldGoalsMade-threePointFieldGoalsAttempted",
+                               "0-0")).split("-")
                 fta = str(vals.get("freeThrowsMade-freeThrowsAttempted", "0-0")).split("-")
                 rows.append({
                     "game_id": game_id,
@@ -233,8 +235,15 @@ def parse_player_box(game_id: str, summary: dict) -> list[dict]:
                     "turnovers": _int(vals.get("turnovers")),
                     "steals": _int(vals.get("steals")),
                     "blocks": _int(vals.get("blocks")),
+                    "fgm": _int(fga[0]) if len(fga) == 2 else 0,
                     "fga": _int(fga[1]) if len(fga) == 2 else 0,
+                    "fg3m": _int(fg3[0]) if len(fg3) == 2 else 0,
+                    "fg3a": _int(fg3[1]) if len(fg3) == 2 else 0,
+                    "ftm": _int(fta[0]) if len(fta) == 2 else 0,
                     "fta": _int(fta[1]) if len(fta) == 2 else 0,
+                    "oreb": _int(vals.get("offensiveRebounds")),
+                    "dreb": _int(vals.get("defensiveRebounds")),
+                    "fouls": _int(vals.get("fouls")),
                     "plus_minus": _int(vals.get("plusMinus")),
                 })
     return rows

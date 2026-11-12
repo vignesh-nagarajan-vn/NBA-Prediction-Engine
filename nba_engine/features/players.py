@@ -2,7 +2,12 @@
 
 Ratings: game-level adjusted plus-minus. Each game is one regression row:
     margin_home = hca * (1 - neutral) + sum_home(min_p / 48 * r_p) - sum_away(min_p / 48 * r_p)
-solved by exponentially time-weighted ridge regression (ratings shrink toward 0 = average).
+solved by exponentially time-weighted ridge regression. Ratings shrink toward a BOX-SCORE
+PRIOR rather than toward 0: each player's decayed per-48 box line (points, rebounds, assists,
+steals, blocks, turnovers, shooting volume, fouls) mapped to a rating by coefficients fit once,
+on the warm-up seasons only, by regressing the plus-minus ratings on those box lines. The
+prior is itself shrunk toward replacement level for low-minute players. This mostly helps
+rookies, new signings and bench players, whom pure plus-minus can barely separate.
 Ratings are re-solved every `solve_every_days` using only games before that day.
 
 Pregame strength for a team = sum over AVAILABLE players of expected_minutes / 48 * r_p, with
@@ -24,6 +29,10 @@ import pandas as pd
 log = logging.getLogger(__name__)
 
 DEFAULT_NEW_PLAYER_MIN = 12.0
+BOX_STATS = ["points", "oreb", "dreb", "assists", "steals", "blocks", "turnovers", "fga",
+             "fta", "fg3m", "fouls"]
+REPLACEMENT = -2.0  # per-48 rating of a freely available player
+PRIOR_MINUTES = 400.0  # minutes of evidence at which the box line gets half weight
 
 
 def is_available(row) -> bool:
@@ -34,11 +43,15 @@ def is_available(row) -> bool:
 
 class PlayerRatings:
     def __init__(self, half_life_days: float = 365.0, ridge: float = 8.0,
-                 solve_every_days: int = 7, ewma_alpha: float = 0.25):
+                 solve_every_days: int = 7, ewma_alpha: float = 0.25,
+                 box_prior: bool = True, prior_fit_season: int = 2017):
         self.hl = half_life_days
         self.ridge = ridge
         self.solve_every = solve_every_days
         self.alpha = ewma_alpha
+        self.box_prior = box_prior
+        self.prior_fit_season = prior_fit_season
+        self.box_coef_: np.ndarray | None = None
 
     def run(self, games: pd.DataFrame, box: pd.DataFrame) -> pd.DataFrame:
         g = games.sort_values("tip_utc").reset_index(drop=True)
@@ -51,6 +64,11 @@ class PlayerRatings:
         b = np.zeros(n)
         last_seen_scale = np.zeros(n)  # time weight of most recent appearance
         theta = np.zeros(n)
+        box_S = np.zeros((n, len(BOX_STATS)))  # time-weighted box totals per player
+        box_M = np.zeros(n)  # time-weighted minutes per player
+        stat_cols = [c for c in BOX_STATS if c in box.columns]
+        if len(stat_cols) < len(BOX_STATS):
+            self.box_prior = False  # older tables without the full box line
         by_game = {gid: df for gid, df in box.groupby("game_id", sort=False)}
         ewma: dict[str, float] = {}
         t0 = g["tip_utc"].iloc[0]
@@ -60,7 +78,11 @@ class PlayerRatings:
         for i, r in enumerate(g.itertuples(index=False)):
             day = int(day_index[i])
             if last_solve_day is None or day - last_solve_day >= self.solve_every:
-                theta = self._solve(A, b, last_seen_scale, day, hca)
+                if (self.box_prior and self.box_coef_ is None
+                        and r.season >= self.prior_fit_season):
+                    self._fit_box_coef(theta, box_S, box_M, day)
+                prior = self._prior(box_S, box_M, day) if self.box_coef_ is not None else None
+                theta = self._solve(A, b, last_seen_scale, day, hca, prior)
                 last_solve_day = day
             rows = by_game.get(r.game_id)
             feats = {"game_id": r.game_id}
@@ -97,8 +119,14 @@ class PlayerRatings:
                 tb = team_lists[side]
                 for p in tb.itertuples(index=False):
                     if p.minutes > 0:
-                        idx.append(pidx[p.player_id])
+                        k = pidx[p.player_id]
+                        idx.append(k)
                         val.append(sign * p.minutes / 48.0)
+                        if self.box_prior:
+                            w_now = 2.0 ** (day / self.hl)
+                            box_S[k] += w_now * np.array([getattr(p, c) for c in BOX_STATS],
+                                                         dtype=float)
+                            box_M[k] += w_now * p.minutes
                         prev = ewma.get(p.player_id)
                         ewma[p.player_id] = (p.minutes if prev is None
                                              else (1 - self.alpha) * prev + self.alpha * p.minutes)
@@ -112,19 +140,53 @@ class PlayerRatings:
         self.theta_, self.player_ids_ = theta, pids
         return df
 
-    def _solve(self, A, b, last_seen, day, hca) -> np.ndarray:
+    def _per48(self, box_S, box_M) -> np.ndarray:
+        with np.errstate(invalid="ignore", divide="ignore"):
+            x = 48.0 * box_S / box_M[:, None]
+        return np.nan_to_num(x)
+
+    def _fit_box_coef(self, theta, box_S, box_M, day) -> None:
+        """Map per-48 box lines to plus-minus ratings using players with real minutes."""
         scale = 2.0 ** (day / self.hl)
+        mins = box_M / scale
+        keep = np.where(mins[:-1] >= 500)[0]
+        if len(keep) < 100:
+            return
+        X = np.column_stack([np.ones(len(keep)), self._per48(box_S, box_M)[keep]])
+        y = theta[keep]
+        w = np.sqrt(mins[keep])
+        reg = np.full(X.shape[1], 1.0)
+        reg[0] = 0.0
+        Xw = X * w[:, None]
+        self.box_coef_ = np.linalg.solve(Xw.T @ Xw + np.diag(reg), Xw.T @ (y * w))
+        log.info("box prior fit on %d players", len(keep))
+
+    def _prior(self, box_S, box_M, day) -> np.ndarray:
+        scale = 2.0 ** (day / self.hl)
+        mins = box_M / scale
+        X = np.column_stack([np.ones(len(box_M)), self._per48(box_S, box_M)])
+        raw = X @ self.box_coef_
+        wgt = mins / (mins + PRIOR_MINUTES)
+        prior = wgt * raw + (1 - wgt) * REPLACEMENT
+        prior[-1] = 0.0  # hca slot
+        return prior
+
+    def _solve(self, A, b, last_seen, day, hca, prior=None) -> np.ndarray:
+        scale = 2.0 ** (day / self.hl)
+        base = np.zeros_like(b) if prior is None else prior.copy()
+        base[hca] = 0.0
         if not b.any():
-            return np.zeros_like(b)
-        # Only players seen in roughly the last 4 half-lives matter; others stay at 0.
+            return base
+        # Only players seen in roughly the last 4 half-lives matter; others sit at the prior.
         active = np.where(last_seen >= scale * 2.0 ** -4)[0]
         active = np.union1d(active, [hca])
         sub = A[np.ix_(active, active)].copy()
         reg = np.full(len(active), self.ridge * scale)
         reg[active == hca] = 1e-3 * scale
         sub[np.diag_indices_from(sub)] += reg
-        theta = np.zeros_like(b)
-        theta[active] = np.linalg.solve(sub, b[active])
+        theta = base
+        # Ridge toward the prior: (A + L) t = b + L * prior
+        theta[active] = np.linalg.solve(sub, b[active] + reg * base[active])
         return theta
 
     def top_players(self, box: pd.DataFrame, k: int = 15) -> pd.DataFrame:
